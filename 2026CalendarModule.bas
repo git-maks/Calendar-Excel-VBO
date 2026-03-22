@@ -1,4 +1,4 @@
-Sub Generate2026Calendar_v3()
+Sub Generate2026Calendar_v6()
     Dim ws As Worksheet
     Dim yearVal As Integer
     Dim i As Integer, monthVal As Integer
@@ -48,8 +48,8 @@ Sub Generate2026Calendar_v3()
     Set ws = Worksheets.Add
     ws.Name = sheetName
     
-    ' --- Set ENTIRE Sheet Background to White ---
-    ws.Cells.Interior.Color = vbWhite
+    ' --- ENTIRE Sheet Background changed to Light Gray (#E7E6E6) ---
+    ws.Cells.Interior.Color = RGB(231, 230, 230)
     
     ' Set Default Alignment to MIDDLE (Center) for EVERYTHING
     ws.Cells.VerticalAlignment = xlCenter
@@ -59,15 +59,15 @@ Sub Generate2026Calendar_v3()
     ' Set Calendar Columns (B to H) width
     ws.Range(ws.Columns(startCol), ws.Columns(startCol + 6)).ColumnWidth = 23
     
-    ' ==========================================================================================
-    ' NEW FEATURE: YEAR PROGRESS BAR (Row 2)
-    ' ==========================================================================================
+    ' Year Progress Bar (Row 2)
     curRow = 2
     Dim progressBarRange As Range
     Set progressBarRange = ws.Range(ws.Cells(curRow, startCol), ws.Cells(curRow, startCol + 6))
     
     With progressBarRange
         .Merge
+        .Interior.Color = vbWhite ' Ensures the empty part of the progress bar is white
+        
         ' Insert Formula: Calculates percentage of year passed based on TODAY
         ' Formula logic: (Today - Jan1) / (Dec31 - Jan1)
         .Formula = "=MAX(0, MIN(1, (TODAY() - DATE(" & yearVal & ",1,1)) / (DATE(" & yearVal & ",12,31) - DATE(" & yearVal & ",1,1))))"
@@ -78,7 +78,7 @@ Sub Generate2026Calendar_v3()
         .Font.Size = 14
         .Font.Bold = True
         .HorizontalAlignment = xlCenter
-        .RowHeight = 35
+        .RowHeight = 16 ' <-- HEIGHT CHANGED TO 16
         .Borders.LineStyle = xlContinuous
         .Borders.Weight = xlThick
         
@@ -99,9 +99,7 @@ Sub Generate2026Calendar_v3()
     ' Skip a row for spacing
     curRow = curRow + 2 ' Now we are at Row 4
     
-    ' ==========================================================================================
-    ' GENERATE MONTHS
-    ' ==========================================================================================
+    ' Generate Months
     For monthVal = 1 To 12
         startDate = DateSerial(yearVal, monthVal, 1)
         endDate = DateSerial(yearVal, monthVal + 1, 0)
@@ -158,7 +156,8 @@ Sub Generate2026Calendar_v3()
                 Set emptyBlockRange = ws.Range(ws.Cells(curRow, curCol), ws.Cells(curRow + 3, curCol))
                 
                 With emptyBlockRange
-                    .Interior.Color = vbWhite
+                    .NumberFormat = "@" ' Enforce Text format
+                    .Interior.Color = RGB(231, 230, 230) ' Matches the background light gray
                     .BorderAround LineStyle:=xlContinuous, Weight:=xlThick
                     .Cells(1, 1).Borders(xlEdgeBottom).LineStyle = xlContinuous
                     .Cells(1, 1).Borders(xlEdgeBottom).Weight = xlThin
@@ -200,7 +199,7 @@ Sub Generate2026Calendar_v3()
             Set blockRange = ws.Range(ws.Cells(curRow, curCol), ws.Cells(curRow + 3, curCol))
             
             With blockRange
-                .Interior.Color = vbWhite
+                .Interior.Color = vbWhite ' Keeps the actual day blocks white
                 .BorderAround LineStyle:=xlContinuous, Weight:=xlThick
                 
                 With .Cells(1, 1).Borders(xlEdgeBottom)
@@ -209,11 +208,16 @@ Sub Generate2026Calendar_v3()
                     .ColorIndex = xlAutomatic
                 End With
                 
-                ' Set Note Font
+                ' Set Note Font AND strict Text formatting
+                .Cells(2, 1).NumberFormat = "@"
                 .Cells(2, 1).Font.Name = "Atopos Narrow"
                 .Cells(2, 1).Font.Size = 10
+                
+                .Cells(3, 1).NumberFormat = "@"
                 .Cells(3, 1).Font.Name = "Atopos Narrow"
                 .Cells(3, 1).Font.Size = 10
+                
+                .Cells(4, 1).NumberFormat = "@"
                 .Cells(4, 1).Font.Name = "Atopos Narrow"
                 .Cells(4, 1).Font.Size = 10
                 
@@ -243,7 +247,8 @@ Sub Generate2026Calendar_v3()
                 Set postEmptyBlockRange = ws.Range(ws.Cells(curRow, curCol), ws.Cells(curRow + 3, curCol))
                 
                 With postEmptyBlockRange
-                    .Interior.Color = vbWhite
+                    .NumberFormat = "@" ' Enforce Text format
+                    .Interior.Color = RGB(231, 230, 230) ' Matches the background light gray
                     .BorderAround LineStyle:=xlContinuous, Weight:=xlThick
                     .Cells(1, 1).Borders(xlEdgeBottom).LineStyle = xlContinuous
                     .Cells(1, 1).Borders(xlEdgeBottom).Weight = xlThin
@@ -259,16 +264,37 @@ Sub Generate2026Calendar_v3()
         curRow = curRow + 2
     Next monthVal
     
-    ' ==========================================================================================
-    ' NEW FEATURE: AUTOMATIC CURRENT DAY HIGHLIGHTING
-    ' ==========================================================================================
+    ' Automatic Current & Past Days Highlighting
+    ' Start cfRange from Row 4 to avoid #REF! errors when the formula looks 3 cells up
     Dim cfRange As Range
-    Set cfRange = ws.Range(ws.Columns(startCol), ws.Columns(startCol + 6))
+    Set cfRange = ws.Range(ws.Cells(4, startCol), ws.Cells(curRow, startCol + 6))
     
-    Dim cond As FormatCondition
-    Set cond = cfRange.FormatConditions.Add(Type:=xlCellValue, Operator:=xlEqual, Formula1:="=TODAY()")
+    ' Addresses for the cell itself and the 3 cells directly above it
+    Dim tl As String, tl1 As String, tl2 As String, tl3 As String
+    tl = ws.Cells(4, startCol).Address(RowAbsolute:=False, ColumnAbsolute:=False)
+    tl1 = ws.Cells(3, startCol).Address(RowAbsolute:=False, ColumnAbsolute:=False)
+    tl2 = ws.Cells(2, startCol).Address(RowAbsolute:=False, ColumnAbsolute:=False)
+    tl3 = ws.Cells(1, startCol).Address(RowAbsolute:=False, ColumnAbsolute:=False)
     
-    With cond
+    ' 1. Past Days Highlighting (Light Gray Text applied to Date AND Note fields)
+    Dim condPast As FormatCondition
+    Dim pastFormula As String
+    pastFormula = "=OR(" & _
+                  "AND(ISNUMBER(" & tl & "), " & tl & ">DATE(2000,1,1), " & tl & "<TODAY()), " & _
+                  "AND(ISNUMBER(" & tl1 & "), " & tl1 & ">DATE(2000,1,1), " & tl1 & "<TODAY()), " & _
+                  "AND(ISNUMBER(" & tl2 & "), " & tl2 & ">DATE(2000,1,1), " & tl2 & "<TODAY()), " & _
+                  "AND(ISNUMBER(" & tl3 & "), " & tl3 & ">DATE(2000,1,1), " & tl3 & "<TODAY()))"
+                  
+    Set condPast = cfRange.FormatConditions.Add(Type:=xlExpression, Formula1:=pastFormula)
+    With condPast
+        .Font.Color = RGB(174, 174, 174) ' #AEAEAE Text Color
+    End With
+    
+    ' 2. Current Day Highlighting (Deep Red Background - Date Cell Only)
+    Dim condToday As FormatCondition
+    Set condToday = cfRange.FormatConditions.Add(Type:=xlCellValue, Operator:=xlEqual, Formula1:="=TODAY()")
+    
+    With condToday
         .Interior.Color = RGB(192, 0, 0) ' Deep Red Background
         .Font.Color = vbWhite            ' White Text
         .Font.Bold = True                ' Bold Text
@@ -277,6 +303,12 @@ Sub Generate2026Calendar_v3()
     ' Fix layout refresh
     ws.Columns.AutoFit
     ws.Range(ws.Columns(startCol), ws.Columns(startCol + 6)).ColumnWidth = 23
+    
+    ' Freeze Panes (Sticky Progress Bar)
+    ws.Activate
+    ActiveWindow.FreezePanes = False ' Reset any existing frozen panes
+    ws.Range("A3").Select ' Select Row 3 to freeze Rows 1 and 2 above it
+    ActiveWindow.FreezePanes = True
     
     MsgBox "Calendar for " & yearVal & " generated successfully!", vbInformation
 End Sub
